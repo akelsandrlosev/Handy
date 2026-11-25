@@ -96,6 +96,60 @@ fn fold(c: char) -> char {
     }
 }
 
+/// Words a priority or severity is usually said with, in the forms a speech
+/// model writes them. Lowercase, "е" for "ё".
+const LEVEL_WORDS: &[&str] = &[
+    "высокий",
+    "высокая",
+    "высокое",
+    "средний",
+    "средняя",
+    "среднее",
+    "низкий",
+    "низкая",
+    "низкое",
+    "критический",
+    "критическая",
+    "критичный",
+    "критичная",
+    "блокирующий",
+    "блокирующая",
+    "максимальный",
+    "максимальная",
+    "минимальный",
+    "минимальная",
+    "срочный",
+    "срочная",
+    "обычный",
+    "обычная",
+    "нормальный",
+    "нормальная",
+    "незначительный",
+    "незначительная",
+    "high",
+    "medium",
+    "low",
+    "critical",
+    "blocker",
+    "major",
+    "minor",
+    "trivial",
+    "normal",
+    "urgent",
+];
+
+/// Whether the next word after `from` (skipping spaces and punctuation) is a
+/// level word like "высокий".
+fn value_follows(folded: &[char], from: usize) -> bool {
+    let rest = folded.get(from..).unwrap_or_default();
+    let word: String = rest
+        .iter()
+        .skip_while(|c| c.is_whitespace() || matches!(c, ':' | '.' | ',' | ';' | '-' | '—' | '–'))
+        .take_while(|c| c.is_alphanumeric())
+        .collect();
+    LEVEL_WORDS.contains(&word.as_str())
+}
+
 /// Characters that end a sentence; a section word only counts right after one.
 fn ends_sentence(c: char) -> bool {
     matches!(c, '.' | '!' | '?' | '\n' | ':' | ';' | '。' | '！' | '？')
@@ -131,7 +185,16 @@ fn find_markers(chars: &[char]) -> Vec<(Section, usize, usize)> {
                 .filter(|(section, phrase)| {
                     at_sentence_start
                         || phrase.contains(' ')
-                        || (after_comma && matches!(section, Section::Priority | Section::Severity))
+                        || (after_comma
+                            && matches!(
+                                section,
+                                Section::Priority | Section::Severity | Section::Environment
+                            ))
+                        // "...Windows 11 приоритет высокий": speech models
+                        // often leave out the punctuation, so these two count
+                        // anywhere when a value word follows.
+                        || (matches!(section, Section::Priority | Section::Severity)
+                            && value_follows(&folded, i + phrase.chars().count()))
                 })
                 .filter(|(_, phrase)| {
                     let p: Vec<char> = phrase.chars().collect();
@@ -374,6 +437,18 @@ pub fn parse_spoken(transcript: &str) -> Option<BugReport> {
             .unwrap_or_default();
         report.title = fallback_title(&seed);
     }
+
+    // Speech models write what is said in lowercase after a comma.
+    for field in [
+        &mut report.title,
+        &mut report.summary,
+        &mut report.expected,
+        &mut report.actual,
+        &mut report.environment,
+        &mut report.notes,
+    ] {
+        *field = capitalize(field);
+    }
     Some(report)
 }
 
@@ -397,7 +472,7 @@ mod tests {
                 "Кликнуть по нему два раза"
             ]
         );
-        assert_eq!(report.actual, "приложения выдает ошибку при запуске");
+        assert_eq!(report.actual, "Приложения выдает ошибку при запуске");
         assert_eq!(report.expected, "Приложение запускается");
     }
 
@@ -410,9 +485,9 @@ mod tests {
         assert_eq!(report.title, "Crash on save");
         assert_eq!(report.summary, "It happens a lot");
         assert_eq!(report.steps, vec!["Open a file", "Press save"]);
-        assert_eq!(report.expected, "it saves");
-        assert_eq!(report.actual, "it crashes");
-        assert_eq!(report.notes, "only on Windows");
+        assert_eq!(report.expected, "It saves");
+        assert_eq!(report.actual, "It crashes");
+        assert_eq!(report.notes, "Only on Windows");
     }
 
     #[test]
@@ -425,8 +500,8 @@ mod tests {
         .unwrap();
         assert_eq!(report.title, "Приложение падает при сохранении");
         assert_eq!(report.steps, vec!["Открыть файл", "Нажать Сохранить"]);
-        assert_eq!(report.expected, "файла сохраняется");
-        assert_eq!(report.actual, "приложения закрывается");
+        assert_eq!(report.expected, "Файла сохраняется");
+        assert_eq!(report.actual, "Приложения закрывается");
     }
 
     #[test]
@@ -442,9 +517,34 @@ mod tests {
         println!("{md}");
         assert!(md.starts_with("# Приложение падает при сохранении\n"));
         assert!(md.contains("## Steps to reproduce\n\n1. Открыть файл\n2. Нажать Сохранить\n"));
-        assert!(md.contains("## Expected behavior\n\nфайла сохраняется\n"));
-        assert!(md.contains("## Actual behavior\n\nприложения закрывается\n"));
+        assert!(md.contains("## Expected behavior\n\nФайла сохраняется\n"));
+        assert!(md.contains("## Actual behavior\n\nПриложения закрывается\n"));
         assert!(!md.contains("## Notes"));
+    }
+
+    #[test]
+    fn splits_a_dictation_with_no_periods_at_all() {
+        // Real output of the speech model for a full dictation: commas only,
+        // no punctuation before "приоритет".
+        let report = parse_spoken(
+            "Заголовок приложения падает при сохранении, шаги воспроизведения 1 открыть файл, второе нажать сохранить, ожидаемый результат файла сохраняется, фактический результат приложения закрывается, окружение Windows 11 приоритет высокий, серьезность высокая.",
+        )
+        .unwrap();
+        assert_eq!(report.title, "Приложения падает при сохранении");
+        assert_eq!(report.steps, vec!["Открыть файл", "Нажать сохранить"]);
+        assert_eq!(report.expected, "Файла сохраняется");
+        assert_eq!(report.actual, "Приложения закрывается");
+        assert_eq!(report.environment, "Windows 11");
+        assert_eq!(report.priority, "высокий");
+        assert_eq!(report.severity, "высокая");
+        assert_eq!(report.notes, "");
+    }
+
+    #[test]
+    fn priority_without_a_level_word_is_not_a_marker_mid_sentence() {
+        let report = parse_spoken("Actual: it crashes, not a priority for us").unwrap();
+        assert_eq!(report.actual, "It crashes, not a priority for us");
+        assert_eq!(report.priority, "");
     }
 
     #[test]
@@ -475,7 +575,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(report.environment, "Windows 11, версия 0.10.2");
-        assert_eq!(report.actual, "it crashes");
+        assert_eq!(report.actual, "It crashes");
     }
 
     #[test]
@@ -527,8 +627,8 @@ mod tests {
         let report =
             parse_spoken("Actual result: the overlay flickers. Expected result: it stays still.")
                 .unwrap();
-        assert_eq!(report.title, "the overlay flickers");
-        assert_eq!(report.expected, "it stays still");
+        assert_eq!(report.title, "The overlay flickers");
+        assert_eq!(report.expected, "It stays still");
     }
 
     #[test]

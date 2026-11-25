@@ -25,6 +25,7 @@ mod paste_tx;
 pub mod portable;
 #[cfg(target_os = "linux")]
 mod primary_selection;
+mod screenshot;
 mod secure_input;
 mod settings;
 mod shortcut;
@@ -718,6 +719,7 @@ pub fn run(cli_args: CliArgs) {
             shortcut::change_typing_tool_setting,
             shortcut::change_external_script_path_setting,
             shortcut::change_bug_report_dir_setting,
+            shortcut::change_bug_report_screenshot_setting,
             shortcut::change_clipboard_handling_setting,
             shortcut::change_auto_submit_setting,
             shortcut::change_auto_submit_key_setting,

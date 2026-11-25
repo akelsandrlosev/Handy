@@ -911,6 +911,10 @@
         "default": "Documents/Handy Bug Reports",
         "choose": "Choose...",
         "reset": "Reset"
+      },
+      "screenshot": {
+        "label": "Attach Screenshot",
+        "description": "Save a screenshot of the active window next to each bug report. It is taken when you press the shortcut, so it shows what you are describing. Windows only."
       }
     }
   },

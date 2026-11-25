@@ -535,6 +535,9 @@ pub struct AppSettings {
     /// `Documents/Handy Bug Reports`.
     #[serde(default)]
     pub bug_report_dir: Option<String>,
+    /// Save a screenshot of the active window with each bug report (Windows).
+    #[serde(default = "default_bug_report_screenshot")]
+    pub bug_report_screenshot: bool,
     #[serde(default = "default_filler_word_removal_enabled")]
     pub filler_word_removal_enabled: bool,
     #[serde(default)]
@@ -712,6 +715,10 @@ fn default_sound_theme() -> SoundTheme {
 
 fn default_theme() -> Theme {
     Theme::System
+}
+
+fn default_bug_report_screenshot() -> bool {
+    true
 }
 
 fn default_post_process_enabled() -> bool {
@@ -1088,6 +1095,7 @@ pub fn get_default_settings() -> AppSettings {
         typing_tool: default_typing_tool(),
         external_script_path: None,
         bug_report_dir: None,
+        bug_report_screenshot: default_bug_report_screenshot(),
         filler_word_removal_enabled: default_filler_word_removal_enabled(),
         custom_filler_words: None,
         chinese_script: default_chinese_script(),

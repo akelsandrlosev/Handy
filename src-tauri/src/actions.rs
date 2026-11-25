@@ -11,6 +11,7 @@ use crate::managers::transcription::policy::{live_decode, LiveDecode, ModelTrait
 use crate::managers::transcription::StreamWorkKind;
 use crate::managers::transcription::{Transcription, TranscriptionManager};
 use crate::notices::{self, Notice, NoticeCode, NoticeSource};
+use crate::screenshot;
 use crate::settings::{get_settings, AppSettings, OverlayStyle, APPLE_INTELLIGENCE_PROVIDER_ID};
 use crate::shortcut;
 use crate::tray::{set_tray_state, TrayIconState};
@@ -483,8 +484,10 @@ async fn save_bug_report(app: &AppHandle, transcript: &str) -> Option<Notice> {
         }
     };
     let transcript = transcript.to_string();
+    let shot = screenshot::take();
     let saved = tauri::async_runtime::spawn_blocking(move || {
-        bug_report::save(&dir, &report, &transcript, &environment)
+        let png = shot.and_then(|shot| screenshot::encode_png(&shot));
+        bug_report::save(&dir, &report, &transcript, &environment, png.as_deref())
     })
     .await;
     match saved {
@@ -585,6 +588,16 @@ impl ShortcutAction for TranscribeAction {
     fn start(&self, app: &AppHandle, binding_id: &str, _shortcut_str: &str) {
         let start_time = Instant::now();
         debug!("TranscribeAction::start called for binding: {}", binding_id);
+
+        // A bug report gets a picture of what is on screen, taken before
+        // Handy puts its own overlay up. Always replaces the previous capture.
+        if self.bug_report {
+            if get_settings(app).bug_report_screenshot {
+                screenshot::capture_now();
+            } else {
+                drop(screenshot::take());
+            }
+        }
 
         // Load model in the background
         let tm = app.state::<Arc<TranscriptionManager>>();

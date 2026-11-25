@@ -156,6 +156,8 @@ const settingUpdaters: {
   typing_tool: (value) => commands.changeTypingToolSetting(value as string),
   external_script_path: (value) =>
     commands.changeExternalScriptPathSetting(value as string | null),
+  bug_report_screenshot: (value) =>
+    commands.changeBugReportScreenshotSetting(value as boolean),
   bug_report_dir: (value) =>
     commands.changeBugReportDirSetting((value as string | null) ?? null),
   clipboard_handling: (value) =>

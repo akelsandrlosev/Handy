@@ -2487,6 +2487,7 @@ dependencies = [
  "objc2-service-management",
  "once_cell",
  "opusic-sys",
+ "png 0.17.16",
  "rdev",
  "regex",
  "reqwest 0.12.28",

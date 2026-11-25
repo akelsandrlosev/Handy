@@ -11,6 +11,9 @@ enum Section {
     Steps,
     Expected,
     Actual,
+    Priority,
+    Severity,
+    Environment,
     Notes,
 }
 
@@ -47,6 +50,18 @@ const SECTION_MARKERS: &[(Section, &str)] = &[
     (Section::Actual, "actual behavior"),
     (Section::Actual, "actual behaviour"),
     (Section::Actual, "actual"),
+    (Section::Priority, "приоритет"),
+    (Section::Priority, "priority"),
+    (Section::Severity, "серьезность"),
+    (Section::Severity, "тяжесть"),
+    (Section::Severity, "severity"),
+    (Section::Environment, "окружение"),
+    (Section::Environment, "environment"),
+    (Section::Environment, "версия приложения"),
+    (Section::Environment, "версия программы"),
+    (Section::Environment, "app version"),
+    (Section::Environment, "операционная система"),
+    (Section::Environment, "operating system"),
     (Section::Notes, "примечания"),
     (Section::Notes, "примечание"),
     (Section::Notes, "заметки"),
@@ -103,10 +118,21 @@ fn find_markers(chars: &[char]) -> Vec<(Section, usize, usize)> {
         // word start. A single word ("шаги", "expected") is too common in
         // ordinary sentences and only counts at the start of one.
         let at_word_start = i == 0 || !folded[i - 1].is_alphanumeric();
+        // "Приоритет высокий, серьезность высокая": these two are spoken as a
+        // short run after a comma, so a single word counts there as well.
+        let after_comma = chars[..i]
+            .iter()
+            .rev()
+            .find(|c| !c.is_whitespace())
+            .is_some_and(|&c| c == ',');
         let hit = if at_word_start {
             SECTION_MARKERS
                 .iter()
-                .filter(|(_, phrase)| at_sentence_start || phrase.contains(' '))
+                .filter(|(section, phrase)| {
+                    at_sentence_start
+                        || phrase.contains(' ')
+                        || (after_comma && matches!(section, Section::Priority | Section::Severity))
+                })
                 .filter(|(_, phrase)| {
                     let p: Vec<char> = phrase.chars().collect();
                     folded.get(i..i + p.len()) == Some(&p[..])
@@ -152,14 +178,108 @@ fn capitalize(s: &str) -> String {
     }
 }
 
-/// Splits spoken steps at sentence ends and commas, since steps are usually
-/// dictated as a comma-separated list; bare numbers ("1.") are dropped.
-fn split_steps(text: &str) -> Vec<String> {
-    text.split(['.', '!', '?', ';', ',', '\n', '。'])
-        .map(clean)
-        .map(|s| capitalize(&s))
-        .filter(|s| !s.is_empty() && !s.chars().all(|c| c.is_ascii_digit()))
+/// Spoken words that separate two steps ("open it, then press save"), and
+/// the neuter ordinals of a list ("первое открыть, второе нажать"). Dropped.
+const STEP_BOUNDARY_WORDS: &[&str] = &[
+    "затем",
+    "потом",
+    "далее",
+    "дальше",
+    "then",
+    "первое",
+    "второе",
+    "третье",
+    "четвертое",
+    "пятое",
+    "шестое",
+];
+
+/// Labels that open a step ("шаг первый", "step 2", "первый"); dropped at the
+/// start of a step only.
+const STEP_LABEL_WORDS: &[&str] = &[
+    "первый",
+    "второй",
+    "третий",
+    "четвертый",
+    "пятый",
+    "шаг",
+    "step",
+    "first",
+    "second",
+    "third",
+    "fourth",
+    "fifth",
+];
+
+/// A number said in words, dropped right after "шаг"/"step".
+const NUMBER_WORDS: &[&str] = &[
+    "один",
+    "два",
+    "три",
+    "четыре",
+    "пять",
+    "шесть",
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+];
+
+/// A word without surrounding punctuation, folded for comparison.
+fn norm_word(word: &str) -> String {
+    word.trim_matches(|c: char| !c.is_alphanumeric())
+        .chars()
+        .map(fold)
         .collect()
+}
+
+/// "1", "2)", "3:" at the start of a step.
+fn is_list_number(word: &str) -> bool {
+    let digits = word.trim_end_matches([')', '.', ':']);
+    !digits.is_empty() && digits.chars().all(|c| c.is_ascii_digit())
+}
+
+/// Splits spoken steps at sentence ends, commas and spoken connectors
+/// ("затем", "потом", "then", "второе"), since steps are usually dictated as a
+/// flowing list. List numbers and labels ("1)", "шаг первый") are dropped, and
+/// each step starts with a capital letter.
+fn split_steps(text: &str) -> Vec<String> {
+    let mut steps = Vec::new();
+    let mut flush = |words: &mut Vec<&str>| {
+        let step = clean(&words.join(" "));
+        words.clear();
+        if !step.is_empty() {
+            steps.push(capitalize(&step));
+        }
+    };
+    for fragment in text.split(['.', '!', '?', ';', ',', '\n', '。']) {
+        let mut words: Vec<&str> = Vec::new();
+        let mut after_step_label = false;
+        for word in fragment.split_whitespace() {
+            let norm = norm_word(word);
+            let at_start = words.is_empty();
+            if STEP_BOUNDARY_WORDS.contains(&norm.as_str()) {
+                flush(&mut words);
+                after_step_label = false;
+            } else if at_start && (is_list_number(word) || norm.is_empty()) {
+                // "1)" or a lone dash after a label
+            } else if at_start && STEP_LABEL_WORDS.contains(&norm.as_str()) {
+                after_step_label = matches!(norm.as_str(), "шаг" | "step");
+            } else if at_start
+                && after_step_label
+                && (NUMBER_WORDS.contains(&norm.as_str()) || is_list_number(word))
+            {
+                after_step_label = false;
+            } else {
+                after_step_label = false;
+                words.push(word);
+            }
+        }
+        flush(&mut words);
+    }
+    steps
 }
 
 fn is_announcement(sentence: &str) -> bool {
@@ -209,6 +329,23 @@ pub fn parse_spoken(transcript: &str) -> Option<BugReport> {
             Section::Steps => report.steps.extend(split_steps(&text)),
             Section::Expected => join(&mut report.expected, &clean(&text)),
             Section::Actual => join(&mut report.actual, &clean(&text)),
+            Section::Priority | Section::Severity => {
+                // A short value ("высокий"); anything after its sentence is a
+                // note, so no words are lost.
+                let mut sentences = text
+                    .split(['.', '!', '?', '\n', '。'])
+                    .map(clean)
+                    .filter(|s| !s.is_empty());
+                let value = sentences.next().unwrap_or_default();
+                if section == Section::Priority {
+                    join(&mut report.priority, &value);
+                } else {
+                    join(&mut report.severity, &value);
+                }
+                let rest: Vec<String> = sentences.collect();
+                join(&mut report.notes, &rest.join(". "));
+            }
+            Section::Environment => join(&mut report.environment, &clean(&text)),
             Section::Notes => join(&mut report.notes, &clean(&text)),
         }
     }
@@ -300,13 +437,76 @@ mod tests {
         let created = chrono::Local
             .with_ymd_and_hms(2026, 11, 25, 11, 42, 9)
             .unwrap();
-        let md = crate::bug_report::render_markdown(&report, transcript, created, "Handy (test)");
+        let md =
+            crate::bug_report::render_markdown(&report, transcript, created, "Handy (test)", None);
         println!("{md}");
         assert!(md.starts_with("# Приложение падает при сохранении\n"));
         assert!(md.contains("## Steps to reproduce\n\n1. Открыть файл\n2. Нажать Сохранить\n"));
         assert!(md.contains("## Expected behavior\n\nфайла сохраняется\n"));
         assert!(md.contains("## Actual behavior\n\nприложения закрывается\n"));
         assert!(!md.contains("## Notes"));
+    }
+
+    #[test]
+    fn priority_and_severity_are_read_as_a_comma_run() {
+        let report = parse_spoken(
+            "Тестовый баг репорт. Приложение не запускается. Шаги повторения. Запустить приложение. Приоритет высокий, серьезность высокая.",
+        )
+        .unwrap();
+        assert_eq!(report.title, "Приложение не запускается");
+        assert_eq!(report.steps, vec!["Запустить приложение"]);
+        assert_eq!(report.priority, "высокий");
+        assert_eq!(report.severity, "высокая");
+        assert_eq!(report.notes, "");
+    }
+
+    #[test]
+    fn words_after_a_priority_value_are_kept_as_notes() {
+        let report =
+            parse_spoken("Priority: high. Only on first launch. Steps: Start it.").unwrap();
+        assert_eq!(report.priority, "high");
+        assert_eq!(report.notes, "Only on first launch");
+    }
+
+    #[test]
+    fn environment_is_its_own_section() {
+        let report = parse_spoken(
+            "Steps: Open it. Окружение Windows 11, версия 0.10.2. Actual result: it crashes.",
+        )
+        .unwrap();
+        assert_eq!(report.environment, "Windows 11, версия 0.10.2");
+        assert_eq!(report.actual, "it crashes");
+    }
+
+    #[test]
+    fn numbered_and_labelled_steps_lose_their_labels() {
+        let steps = |text: &str| parse_spoken(text).unwrap().steps;
+        assert_eq!(
+            steps("Шаги: 1) открыть файл, 2) нажать сохранить."),
+            vec!["Открыть файл", "Нажать сохранить"]
+        );
+        assert_eq!(
+            steps("Шаги. Шаг первый открыть файл, шаг второй нажать сохранить."),
+            vec!["Открыть файл", "Нажать сохранить"]
+        );
+        assert_eq!(
+            steps("Steps. Step 1: open it. Step 2: press save."),
+            vec!["Open it", "Press save"]
+        );
+        assert_eq!(
+            steps("Шаги. Первое открыть файл, второе нажать сохранить."),
+            vec!["Открыть файл", "Нажать сохранить"]
+        );
+    }
+
+    #[test]
+    fn connector_words_split_steps_spoken_without_commas() {
+        let report =
+            parse_spoken("Шаги. Открыть файл затем нажать сохранить потом закрыть окно.").unwrap();
+        assert_eq!(
+            report.steps,
+            vec!["Открыть файл", "Нажать сохранить", "Закрыть окно"]
+        );
     }
 
     #[test]

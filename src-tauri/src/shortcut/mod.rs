@@ -1069,6 +1069,15 @@ pub fn change_bug_report_dir_setting(app: AppHandle, path: Option<String>) -> Re
 
 #[tauri::command]
 #[specta::specta]
+pub fn change_bug_report_screenshot_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.bug_report_screenshot = enabled;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn change_clipboard_handling_setting(app: AppHandle, handling: String) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);
     let parsed = match handling.as_str() {

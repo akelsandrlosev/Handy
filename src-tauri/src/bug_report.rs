@@ -37,6 +37,12 @@ pub struct BugReport {
     pub expected: String,
     pub actual: String,
     pub notes: String,
+    /// Only the spoken-section parser fills these; the AI schema leaves them out.
+    pub priority: String,
+    pub severity: String,
+    /// Environment the speaker described (not the Handy build, which the
+    /// header always shows).
+    pub environment: String,
 }
 
 impl BugReport {
@@ -209,11 +215,13 @@ fn single_line(s: &str) -> String {
     s.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+/// `screenshot` is the file name of a PNG saved next to the report.
 pub fn render_markdown(
     report: &BugReport,
     transcript: &str,
     created: DateTime<Local>,
-    environment: &str,
+    handy_build: &str,
+    screenshot: Option<&str>,
 ) -> String {
     let title = single_line(&report.title);
     let title = if title.is_empty() {
@@ -223,9 +231,19 @@ pub fn render_markdown(
     };
 
     let mut out = format!(
-        "# {title}\n\n- **Reported:** {}\n- **Environment:** {environment}\n\n",
+        "# {title}\n\n- **Reported:** {}\n- **Handy:** {handy_build}\n",
         created.format("%Y-%m-%d %H:%M")
     );
+    for (label, value) in [
+        ("Priority", &report.priority),
+        ("Severity", &report.severity),
+    ] {
+        let value = single_line(value);
+        if !value.is_empty() {
+            out.push_str(&format!("- **{label}:** {value}\n"));
+        }
+    }
+    out.push('\n');
     push_section(&mut out, "Summary", &report.summary);
 
     let steps: Vec<String> = report
@@ -240,7 +258,12 @@ pub fn render_markdown(
 
     push_section(&mut out, "Expected behavior", &report.expected);
     push_section(&mut out, "Actual behavior", &report.actual);
+    push_section(&mut out, "Environment", &report.environment);
     push_section(&mut out, "Notes", &report.notes);
+    if let Some(file) = screenshot {
+        // Angle brackets keep spaces and parentheses in the name valid.
+        out.push_str(&format!("## Screenshot\n\n![Screenshot](<{file}>)\n\n"));
+    }
 
     // Dictated text could contain "</details>", so it goes in a fenced block
     // with a fence longer than any backtick run inside it.
@@ -295,18 +318,40 @@ fn unique_path(dir: &Path, created: DateTime<Local>, title: &str) -> PathBuf {
     path
 }
 
-/// Writes the report and returns the file's path. Blocking: call from a
-/// blocking context.
+/// Writes the report and returns the file's path. `screenshot` is PNG data,
+/// saved next to the report under the same name; failing to write it never
+/// loses the report. Blocking: call from a blocking context.
 pub fn save(
     dir: &Path,
     report: &BugReport,
     transcript: &str,
-    environment: &str,
+    handy_build: &str,
+    screenshot: Option<&[u8]>,
 ) -> anyhow::Result<PathBuf> {
     std::fs::create_dir_all(dir).with_context(|| format!("couldn't create {}", dir.display()))?;
     let created = Local::now();
     let path = unique_path(dir, created, &report.title);
-    let markdown = render_markdown(report, transcript, created, environment);
+
+    let image_name = screenshot.and_then(|png| {
+        let image_path = path.with_extension("png");
+        match std::fs::write(&image_path, png) {
+            Ok(()) => image_path
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned()),
+            Err(e) => {
+                warn!("Couldn't save the bug report screenshot: {e}");
+                None
+            }
+        }
+    });
+
+    let markdown = render_markdown(
+        report,
+        transcript,
+        created,
+        handy_build,
+        image_name.as_deref(),
+    );
     std::fs::write(&path, markdown)
         .with_context(|| format!("couldn't write {}", path.display()))?;
     Ok(path)
@@ -387,7 +432,7 @@ mod tests {
             actual: "It crashes".into(),
             ..BugReport::default()
         };
-        let md = render_markdown(&report, "raw words", when(), "Handy 1.0 (windows)");
+        let md = render_markdown(&report, "raw words", when(), "Handy 1.0 (windows)", None);
         assert!(md.starts_with("# Crash on save\n"));
         assert!(md.contains("- **Reported:** 2026-11-25 14:32"));
         assert!(md.contains("1. Open a file\n2. Press save"));
@@ -399,8 +444,48 @@ mod tests {
 
     #[test]
     fn dictation_fence_outgrows_backticks_in_the_transcript() {
-        let md = render_markdown(&BugReport::default(), "see ```code``` here", when(), "env");
+        let md = render_markdown(
+            &BugReport::default(),
+            "see ```code``` here",
+            when(),
+            "env",
+            None,
+        );
         assert!(md.contains("````text\nsee ```code``` here\n````"));
+    }
+
+    #[test]
+    fn markdown_shows_priority_environment_and_screenshot() {
+        let report = BugReport {
+            title: "Crash".into(),
+            priority: "high".into(),
+            severity: "critical".into(),
+            environment: "Windows 11".into(),
+            ..BugReport::default()
+        };
+        let md = render_markdown(&report, "", when(), "Handy 1.0", Some("a b (1).png"));
+        assert!(
+            md.contains("- **Handy:** Handy 1.0\n- **Priority:** high\n- **Severity:** critical\n")
+        );
+        assert!(md.contains("## Environment\n\nWindows 11"));
+        assert!(md.contains("## Screenshot\n\n![Screenshot](<a b (1).png>)"));
+    }
+
+    #[test]
+    fn save_writes_the_screenshot_next_to_the_report() {
+        let dir = tempfile::tempdir().unwrap();
+        let report = BugReport::from_raw("it crashes");
+        let saved = save(dir.path(), &report, "it crashes", "env", Some(b"PNGDATA")).unwrap();
+        let image = saved.with_extension("png");
+        assert_eq!(std::fs::read(&image).unwrap(), b"PNGDATA");
+        let md = std::fs::read_to_string(&saved).unwrap();
+        let name = image.file_name().unwrap().to_string_lossy();
+        assert!(md.contains(&format!("![Screenshot](<{name}>)")));
+
+        let without = save(dir.path(), &report, "it crashes", "env", None).unwrap();
+        assert!(!std::fs::read_to_string(without)
+            .unwrap()
+            .contains("Screenshot"));
     }
 
     #[test]
@@ -413,7 +498,7 @@ mod tests {
         assert_ne!(first, second);
         assert!(second.to_string_lossy().ends_with("-2.md"));
 
-        let saved = save(&dir.path().join("nested"), &report, "t", "env").unwrap();
+        let saved = save(&dir.path().join("nested"), &report, "t", "env", None).unwrap();
         assert!(std::fs::read_to_string(saved)
             .unwrap()
             .starts_with("# same title"));

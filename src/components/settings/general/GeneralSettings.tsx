@@ -5,6 +5,7 @@ import { MicrophoneSelector } from "../MicrophoneSelector";
 import { ChannelSelector } from "../ChannelSelector";
 import { ShortcutInput } from "../ShortcutInput";
 import { BugReportFolder } from "../BugReportFolder";
+import { BugReportScreenshot } from "../BugReportScreenshot";
 import { SettingsGroup } from "../../ui/SettingsGroup";
 import { OutputDeviceSelector } from "../OutputDeviceSelector";
 import { ShortcutActivationSetting } from "../ShortcutActivation";
@@ -21,6 +22,7 @@ export const GeneralSettings: React.FC = () => {
   const { t } = useTranslation();
   const { audioFeedbackEnabled, getSetting } = useSettings();
   const isLinux = type() === "linux";
+  const isWindows = type() === "windows";
   // Only for Chinese speakers, or anyone who already picked a script.
   const speaksChinese =
     (getSetting("spoken_languages") ?? []).some(isChinese) ||
@@ -36,6 +38,10 @@ export const GeneralSettings: React.FC = () => {
       <SettingsGroup title={t("settings.bugReport.title")}>
         <ShortcutInput shortcutId="bug_report" grouped={true} />
         <BugReportFolder descriptionMode="tooltip" grouped={true} />
+        {/* The screenshot is captured on Windows only. */}
+        {isWindows && (
+          <BugReportScreenshot descriptionMode="tooltip" grouped={true} />
+        )}
       </SettingsGroup>
       <SettingsGroup title={t("settings.languages.title")}>
         <PreferredLanguages descriptionMode="tooltip" grouped={true} />

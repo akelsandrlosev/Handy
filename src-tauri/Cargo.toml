@@ -77,6 +77,8 @@ regex = "1"
 whatlang = "0.16"
 isolang = "2"
 chrono = "0.4"
+# PNG encoding of the bug report screenshot; already in the tree via tauri/image.
+png = "0.17"
 rusqlite = { version = "0.37", features = ["bundled"] }
 sha2 = "0.10"
 libc = "0.2"
@@ -123,6 +125,7 @@ windows = { version = "0.61.3", features = [
   "Win32_System_Threading",
   "Win32_System_Variant",
   "Win32_Foundation",
+  "Win32_Graphics_Dwm",
   "Win32_Graphics_Gdi",
   "Win32_UI_WindowsAndMessaging",
 ] }

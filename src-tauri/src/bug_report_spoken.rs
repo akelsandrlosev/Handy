@@ -27,7 +27,6 @@ const SECTION_MARKERS: &[(Section, &str)] = &[
     (Section::Steps, "шаги воспроизведения"),
     (Section::Steps, "шаги для воспроизведения"),
     (Section::Steps, "шаги повторения"),
-    (Section::Steps, "как воспроизвести"),
     (Section::Steps, "шаги"),
     (Section::Steps, "steps to reproduce"),
     (Section::Steps, "reproduction steps"),
@@ -99,9 +98,15 @@ fn find_markers(chars: &[char]) -> Vec<(Section, usize, usize)> {
             .rev()
             .find(|c| !c.is_whitespace())
             .is_none_or(|&c| ends_sentence(c));
-        let hit = if at_sentence_start {
+        // Speech models often put a comma, not a period, between spoken
+        // sections, so a two-word marker ("ожидаемый результат") counts at any
+        // word start. A single word ("шаги", "expected") is too common in
+        // ordinary sentences and only counts at the start of one.
+        let at_word_start = i == 0 || !folded[i - 1].is_alphanumeric();
+        let hit = if at_word_start {
             SECTION_MARKERS
                 .iter()
+                .filter(|(_, phrase)| at_sentence_start || phrase.contains(' '))
                 .filter(|(_, phrase)| {
                     let p: Vec<char> = phrase.chars().collect();
                     folded.get(i..i + p.len()) == Some(&p[..])
@@ -138,9 +143,10 @@ fn clean(text: &str) -> String {
         .to_string()
 }
 
-/// Splits spoken steps at sentence ends; bare numbers ("1.") are dropped.
+/// Splits spoken steps at sentence ends and commas, since steps are usually
+/// dictated as a comma-separated list; bare numbers ("1.") are dropped.
 fn split_steps(text: &str) -> Vec<String> {
-    text.split(['.', '!', '?', ';', '\n', '。'])
+    text.split(['.', '!', '?', ';', ',', '\n', '。'])
         .map(clean)
         .filter(|s| !s.is_empty() && !s.chars().all(|c| c.is_ascii_digit()))
         .collect()
@@ -238,7 +244,11 @@ mod tests {
         assert_eq!(report.summary, "");
         assert_eq!(
             report.steps,
-            vec!["Открыть папку приложения, найти Exe файл, кликнуть по нему два раза"]
+            vec![
+                "Открыть папку приложения",
+                "найти Exe файл",
+                "кликнуть по нему два раза"
+            ]
         );
         assert_eq!(report.actual, "приложения выдает ошибку при запуске");
         assert_eq!(report.expected, "Приложение запускается");
@@ -256,6 +266,26 @@ mod tests {
         assert_eq!(report.expected, "it saves");
         assert_eq!(report.actual, "it crashes");
         assert_eq!(report.notes, "only on Windows");
+    }
+
+    #[test]
+    fn splits_a_report_dictated_with_commas_between_sections() {
+        // Real output of the speech model: commas, not periods, between
+        // sections.
+        let report = parse_spoken(
+            "Заголовок Приложение падает при сохранении, шаги воспроизведения Открыть файл, нажать Сохранить. Ожидаемый результат файла сохраняется, фактический результат приложения закрывается.",
+        )
+        .unwrap();
+        assert_eq!(report.title, "Приложение падает при сохранении");
+        assert_eq!(report.steps, vec!["Открыть файл", "нажать Сохранить"]);
+        assert_eq!(report.expected, "файла сохраняется");
+        assert_eq!(report.actual, "приложения закрывается");
+    }
+
+    #[test]
+    fn two_word_markers_work_mid_sentence_but_single_words_do_not() {
+        assert!(parse_spoken("Приложение падает, а ожидаемый результат другой").is_some());
+        assert!(parse_spoken("Приложение падает, шаги непонятны").is_none());
     }
 
     #[test]

@@ -56,7 +56,7 @@ const FALLBACK_TITLE_WORDS: usize = 10;
 /// The first sentence of the transcript, cut to a few words, as a title. Cut
 /// at sentence ends only, and never ending on punctuation that reads as
 /// unfinished.
-fn fallback_title(transcript: &str) -> String {
+pub(crate) fn fallback_title(transcript: &str) -> String {
     let first_sentence = transcript
         .trim()
         .split(['.', '!', '?', '。', '！', '？', '\n'])

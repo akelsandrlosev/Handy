@@ -5,6 +5,7 @@ mod audio_feedback;
 pub mod audio_toolkit;
 mod autostart;
 mod bug_report;
+mod bug_report_spoken;
 mod catalog;
 mod chinese_script;
 pub mod cli;

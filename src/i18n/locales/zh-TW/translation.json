@@ -977,7 +977,7 @@
     "bugReportNotStructuredTitle": "Bug Report Saved As Dictated",
     "bugReportNotStructured": "The AI provider didn't return a usable report, so Handy saved your words as dictated. Check the provider and model in Post-Processing, or the log for details.",
     "bugReportNoProviderTitle": "Bug Report Saved As Dictated",
-    "bugReportNoProvider": "No AI provider is set up, so Handy saved your words as dictated. Add a provider, model and API key in Post-Processing to get a title and steps."
+    "bugReportNoProvider": "No AI provider is set up, and no section words were heard, so Handy saved your words as dictated. Say \"steps\", \"expected result\" and \"actual result\" to split a report, or add a provider in Post-Processing."
   },
   "notices": {
     "errorOne": "{{n}} 個錯誤",

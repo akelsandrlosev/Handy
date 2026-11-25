@@ -3,6 +3,7 @@ use crate::apple_intelligence;
 use crate::audio_feedback::{play_feedback_sound, play_feedback_sound_blocking, SoundType};
 use crate::audio_toolkit::VadPolicy;
 use crate::bug_report::{self, BugReport, StructureError};
+use crate::bug_report_spoken;
 use crate::managers::audio::{recording_notice_code, AudioRecordingManager};
 use crate::managers::history::HistoryManager;
 use crate::managers::model::ModelManager;
@@ -455,9 +456,16 @@ async fn post_process_transcription(
 /// and saves it as a Markdown file. Returns the notice to show, if any.
 async fn save_bug_report(app: &AppHandle, transcript: &str) -> Option<Notice> {
     let settings = get_settings(app);
+    // The AI provider if one is set up, else the section words the speaker
+    // said, else the transcript as dictated. `structure_error` is what to tell
+    // the user: nothing when the spoken sections worked without a provider.
     let (report, structure_error) = match bug_report::structure(&settings, transcript).await {
         Ok(report) => (report, None),
-        Err(e) => (BugReport::from_raw(transcript), Some(e)),
+        Err(e) => match (bug_report_spoken::parse_spoken(transcript), e) {
+            (Some(report), StructureError::NotConfigured) => (report, None),
+            (Some(report), e) => (report, Some(e)),
+            (None, e) => (BugReport::from_raw(transcript), Some(e)),
+        },
     };
     let environment = format!(
         "Handy {} ({})",

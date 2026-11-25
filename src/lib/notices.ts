@@ -66,6 +66,10 @@ const NOTICE_DISPLAY: Record<NoticeCode, NoticeDisplay> = {
     title: "errors.bugReportNotStructuredTitle",
     explanation: (t) => t("errors.bugReportNotStructured"),
   },
+  BugReportNoProvider: {
+    title: "errors.bugReportNoProviderTitle",
+    explanation: (t) => t("errors.bugReportNoProvider"),
+  },
 };
 
 export const noticeDisplay = (code: NoticeCode) => NOTICE_DISPLAY[code];

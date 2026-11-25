@@ -975,7 +975,9 @@
     "bugReportSaveFailedTitle": "Bug Report Not Saved",
     "bugReportSaveFailed": "Handy couldn't write the bug report file. Check the bug report folder in Settings > General.",
     "bugReportNotStructuredTitle": "Bug Report Saved As Dictated",
-    "bugReportNotStructured": "Handy couldn't structure the report with AI, so it saved your words as dictated. Set up Post-Processing to get titles and steps."
+    "bugReportNotStructured": "The AI provider didn't return a usable report, so Handy saved your words as dictated. Check the provider and model in Post-Processing, or the log for details.",
+    "bugReportNoProviderTitle": "Bug Report Saved As Dictated",
+    "bugReportNoProvider": "No AI provider is set up, so Handy saved your words as dictated. Add a provider, model and API key in Post-Processing to get a title and steps."
   },
   "notices": {
     "errorOne": "오류 {{n}}개",

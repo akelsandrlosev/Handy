@@ -2,7 +2,7 @@
 use crate::apple_intelligence;
 use crate::audio_feedback::{play_feedback_sound, play_feedback_sound_blocking, SoundType};
 use crate::audio_toolkit::VadPolicy;
-use crate::bug_report::{self, BugReport};
+use crate::bug_report::{self, BugReport, StructureError};
 use crate::managers::audio::{recording_notice_code, AudioRecordingManager};
 use crate::managers::history::HistoryManager;
 use crate::managers::model::ModelManager;
@@ -455,9 +455,9 @@ async fn post_process_transcription(
 /// and saves it as a Markdown file. Returns the notice to show, if any.
 async fn save_bug_report(app: &AppHandle, transcript: &str) -> Option<Notice> {
     let settings = get_settings(app);
-    let (report, structured) = match bug_report::structure(&settings, transcript).await {
-        Some(report) => (report, true),
-        None => (BugReport::from_raw(transcript), false),
+    let (report, structure_error) = match bug_report::structure(&settings, transcript).await {
+        Ok(report) => (report, None),
+        Err(e) => (BugReport::from_raw(transcript), Some(e)),
     };
     let environment = format!(
         "Handy {} ({})",
@@ -482,9 +482,12 @@ async fn save_bug_report(app: &AppHandle, transcript: &str) -> Option<Notice> {
     match saved {
         Ok(Ok(path)) => {
             info!("Bug report saved to {}", path.display());
-            (!structured).then(|| {
-                Notice::new(NoticeCode::BugReportNotStructured, NoticeSource::Dictation)
-                    .with_detail(path.display().to_string())
+            structure_error.map(|e| {
+                let code = match e {
+                    StructureError::NotConfigured => NoticeCode::BugReportNoProvider,
+                    StructureError::Failed => NoticeCode::BugReportNotStructured,
+                };
+                Notice::new(code, NoticeSource::Dictation).with_detail(path.display().to_string())
             })
         }
         Ok(Err(e)) => {

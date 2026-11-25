@@ -50,14 +50,41 @@ impl BugReport {
     }
 }
 
-/// The first few words of the transcript, as a title.
+/// Longest fallback title, in words.
+const FALLBACK_TITLE_WORDS: usize = 10;
+
+/// The first sentence of the transcript, cut to a few words, as a title. Cut
+/// at sentence ends only, and never ending on punctuation that reads as
+/// unfinished.
 fn fallback_title(transcript: &str) -> String {
-    let words: Vec<&str> = transcript.split_whitespace().take(8).collect();
-    if words.is_empty() {
+    let first_sentence = transcript
+        .trim()
+        .split(['.', '!', '?', '。', '！', '？', '\n'])
+        .next()
+        .unwrap_or_default();
+    let words: Vec<&str> = first_sentence
+        .split_whitespace()
+        .take(FALLBACK_TITLE_WORDS)
+        .collect();
+    let title = words
+        .join(" ")
+        .trim_end_matches(|c: char| c.is_ascii_punctuation() || "—–…«»".contains(c))
+        .trim()
+        .to_string();
+    if title.is_empty() {
         "Bug report".to_string()
     } else {
-        words.join(" ")
+        title
     }
+}
+
+/// Why a report couldn't be structured, so the user can be told what to fix.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StructureError {
+    /// No provider, model or API key is set up for post-processing.
+    NotConfigured,
+    /// A provider is set up, but the request or its reply was unusable.
+    Failed,
 }
 
 fn json_schema() -> serde_json::Value {
@@ -90,26 +117,37 @@ fn parse_report(reply: &str) -> Option<BugReport> {
 }
 
 /// Asks the configured post-processing provider to structure the transcript.
-/// `None` means the caller should fall back to [`BugReport::from_raw`].
-pub async fn structure(settings: &AppSettings, transcript: &str) -> Option<BugReport> {
-    let provider = settings.active_post_process_provider()?.clone();
+/// On error the caller falls back to [`BugReport::from_raw`].
+pub async fn structure(
+    settings: &AppSettings,
+    transcript: &str,
+) -> Result<BugReport, StructureError> {
+    let provider = settings
+        .active_post_process_provider()
+        .ok_or(StructureError::NotConfigured)?
+        .clone();
     if provider.id == APPLE_INTELLIGENCE_PROVIDER_ID {
         debug!("Bug report structuring is not supported with Apple Intelligence");
-        return None;
+        return Err(StructureError::Failed);
     }
-    let model = settings.post_process_models.get(&provider.id)?.clone();
-    if model.trim().is_empty() {
-        debug!(
-            "Bug report structuring skipped: no model for '{}'",
-            provider.id
-        );
-        return None;
-    }
+    let model = settings
+        .post_process_models
+        .get(&provider.id)
+        .map(|m| m.trim().to_string())
+        .unwrap_or_default();
     let api_key = settings
         .post_process_api_keys
         .get(&provider.id)
         .cloned()
         .unwrap_or_default();
+    // Only a custom endpoint (e.g. a local server) can work without a key.
+    if model.is_empty() || (api_key.trim().is_empty() && provider.id != "custom") {
+        debug!(
+            "Bug report structuring skipped: '{}' has no model or API key",
+            provider.id
+        );
+        return Err(StructureError::NotConfigured);
+    }
     let disable_reasoning = matches!(provider.id.as_str(), "custom" | "openrouter");
 
     let schema = provider.supports_structured_output.then(json_schema);
@@ -123,24 +161,21 @@ pub async fn structure(settings: &AppSettings, transcript: &str) -> Option<BugRe
         disable_reasoning,
     );
     match tokio::time::timeout(STRUCTURE_TIMEOUT, request).await {
-        Ok(Ok(Some(reply))) => {
-            let report = parse_report(&reply);
-            if report.is_none() {
-                warn!("Bug report structuring returned an unusable reply");
-            }
-            report
-        }
+        Ok(Ok(Some(reply))) => parse_report(&reply).ok_or_else(|| {
+            warn!("Bug report structuring returned an unusable reply");
+            StructureError::Failed
+        }),
         Ok(Ok(None)) => {
             warn!("Bug report structuring returned no content");
-            None
+            Err(StructureError::Failed)
         }
         Ok(Err(e)) => {
             warn!("Bug report structuring failed: {e}");
-            None
+            Err(StructureError::Failed)
         }
         Err(_) => {
             warn!("Bug report structuring timed out after {STRUCTURE_TIMEOUT:?}");
-            None
+            Err(StructureError::Failed)
         }
     }
 }
@@ -312,17 +347,36 @@ mod tests {
 
     #[test]
     fn raw_fallback_keeps_the_transcript_and_titles_it() {
-        let report =
-            BugReport::from_raw("  the overlay flickers when I stop recording quickly please fix ");
-        assert_eq!(
-            report.title,
-            "the overlay flickers when I stop recording quickly"
-        );
+        let report = BugReport::from_raw("  the overlay flickers. Steps: stop recording quickly ");
+        assert_eq!(report.title, "the overlay flickers");
         assert_eq!(
             report.notes,
-            "the overlay flickers when I stop recording quickly please fix"
+            "the overlay flickers. Steps: stop recording quickly"
         );
         assert_eq!(BugReport::from_raw("   ").title, "Bug report");
+        assert_eq!(BugReport::from_raw("...").title, "Bug report");
+    }
+
+    #[test]
+    fn fallback_title_never_ends_on_a_comma_or_runs_long() {
+        assert_eq!(
+            fallback_title(
+                "Приложение не запускается, когда ты пытаешься его запустить, подается ошибка при запуске"
+            ),
+            "Приложение не запускается, когда ты пытаешься его запустить, подается ошибка"
+        );
+        assert_eq!(
+            fallback_title("one two three four five six seven eight nine ten eleven twelve"),
+            "one two three four five six seven eight nine ten"
+        );
+        assert_eq!(
+            fallback_title("It crashes on save, then"),
+            "It crashes on save, then"
+        );
+        assert_eq!(
+            fallback_title("Crash on save,\nmore details"),
+            "Crash on save"
+        );
     }
 
     #[test]

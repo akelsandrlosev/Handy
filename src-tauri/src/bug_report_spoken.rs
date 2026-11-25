@@ -283,6 +283,23 @@ mod tests {
     }
 
     #[test]
+    fn renders_the_comma_dictation_as_a_sectioned_markdown_file() {
+        use chrono::TimeZone;
+        let transcript = "Заголовок Приложение падает при сохранении, шаги воспроизведения Открыть файл, нажать Сохранить. Ожидаемый результат файла сохраняется, фактический результат приложения закрывается.";
+        let report = parse_spoken(transcript).unwrap();
+        let created = chrono::Local
+            .with_ymd_and_hms(2026, 11, 25, 11, 42, 9)
+            .unwrap();
+        let md = crate::bug_report::render_markdown(&report, transcript, created, "Handy (test)");
+        println!("{md}");
+        assert!(md.starts_with("# Приложение падает при сохранении\n"));
+        assert!(md.contains("## Steps to reproduce\n\n1. Открыть файл\n2. нажать Сохранить\n"));
+        assert!(md.contains("## Expected behavior\n\nфайла сохраняется\n"));
+        assert!(md.contains("## Actual behavior\n\nприложения закрывается\n"));
+        assert!(!md.contains("## Notes"));
+    }
+
+    #[test]
     fn two_word_markers_work_mid_sentence_but_single_words_do_not() {
         assert!(parse_spoken("Приложение падает, а ожидаемый результат другой").is_some());
         assert!(parse_spoken("Приложение падает, шаги непонятны").is_none());

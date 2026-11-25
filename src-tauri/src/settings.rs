@@ -531,6 +531,10 @@ pub struct AppSettings {
     pub typing_tool: TypingTool,
     #[serde(default)]
     pub external_script_path: Option<String>,
+    /// Where dictated bug reports are saved; `None` means
+    /// `Documents/Handy Bug Reports`.
+    #[serde(default)]
+    pub bug_report_dir: Option<String>,
     #[serde(default = "default_filler_word_removal_enabled")]
     pub filler_word_removal_enabled: bool,
     #[serde(default)]
@@ -997,6 +1001,25 @@ pub fn get_default_settings() -> AppSettings {
             current_binding: default_post_process_shortcut.to_string(),
         },
     );
+    #[cfg(target_os = "windows")]
+    let default_bug_report_shortcut = "ctrl+alt+b";
+    #[cfg(target_os = "macos")]
+    let default_bug_report_shortcut = "option+shift+b";
+    #[cfg(target_os = "linux")]
+    let default_bug_report_shortcut = "ctrl+alt+shift+b";
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    let default_bug_report_shortcut = "alt+shift+b";
+
+    bindings.insert(
+        "bug_report".to_string(),
+        ShortcutBinding {
+            id: "bug_report".to_string(),
+            name: "Dictate Bug Report".to_string(),
+            description: "Dictate a bug report and save it as a Markdown file.".to_string(),
+            default_binding: default_bug_report_shortcut.to_string(),
+            current_binding: default_bug_report_shortcut.to_string(),
+        },
+    );
     bindings.insert(
         "cancel".to_string(),
         ShortcutBinding {
@@ -1064,6 +1087,7 @@ pub fn get_default_settings() -> AppSettings {
         reliable_paste: false,
         typing_tool: default_typing_tool(),
         external_script_path: None,
+        bug_report_dir: None,
         filler_word_removal_enabled: default_filler_word_removal_enabled(),
         custom_filler_words: None,
         chinese_script: default_chinese_script(),

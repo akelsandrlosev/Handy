@@ -51,6 +51,8 @@ pub enum NoticeCode {
     PostProcessFailed,
     FileTranscriptionFailed,
     FilePostProcessFailed,
+    BugReportSaveFailed,
+    BugReportNotStructured,
 }
 
 impl NoticeCode {
@@ -65,8 +67,11 @@ impl NoticeCode {
             | Self::RecordingFailed
             | Self::ModelLoadFailed
             | Self::NoModelSelected
-            | Self::FileTranscriptionFailed => NoticeLevel::Error,
-            Self::PostProcessFailed | Self::FilePostProcessFailed => NoticeLevel::Warning,
+            | Self::FileTranscriptionFailed
+            | Self::BugReportSaveFailed => NoticeLevel::Error,
+            Self::PostProcessFailed
+            | Self::FilePostProcessFailed
+            | Self::BugReportNotStructured => NoticeLevel::Warning,
         }
     }
 
@@ -85,6 +90,8 @@ impl NoticeCode {
             Self::PostProcessFailed => &strings.post_process_failed_title,
             Self::FileTranscriptionFailed => &strings.file_transcription_failed_title,
             Self::FilePostProcessFailed => &strings.file_post_process_failed_title,
+            Self::BugReportSaveFailed => &strings.bug_report_save_failed_title,
+            Self::BugReportNotStructured => &strings.bug_report_not_structured_title,
         }
     }
 }

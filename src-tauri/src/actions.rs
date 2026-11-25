@@ -2,6 +2,7 @@
 use crate::apple_intelligence;
 use crate::audio_feedback::{play_feedback_sound, play_feedback_sound_blocking, SoundType};
 use crate::audio_toolkit::VadPolicy;
+use crate::bug_report::{self, BugReport};
 use crate::managers::audio::{recording_notice_code, AudioRecordingManager};
 use crate::managers::history::HistoryManager;
 use crate::managers::model::ModelManager;
@@ -16,7 +17,7 @@ use crate::utils::{
     self, show_processing_overlay, show_recording_overlay, show_transcribing_overlay,
 };
 use crate::TranscriptionCoordinator;
-use log::{debug, error, warn};
+use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -134,6 +135,9 @@ pub trait ShortcutAction: Send + Sync {
 // Transcribe Action
 struct TranscribeAction {
     post_process: bool,
+    /// Save the dictation as a structured Markdown bug report instead of
+    /// pasting it.
+    bug_report: bool,
 }
 
 /// Field name for structured output JSON schema
@@ -447,6 +451,59 @@ async fn post_process_transcription(
     }
 }
 
+/// Structures the dictation with the LLM (falling back to the raw transcript)
+/// and saves it as a Markdown file. Returns the notice to show, if any.
+async fn save_bug_report(app: &AppHandle, transcript: &str) -> Option<Notice> {
+    let settings = get_settings(app);
+    let (report, structured) = match bug_report::structure(&settings, transcript).await {
+        Some(report) => (report, true),
+        None => (BugReport::from_raw(transcript), false),
+    };
+    let environment = format!(
+        "Handy {} ({})",
+        app.package_info().version,
+        std::env::consts::OS
+    );
+    let dir = match bug_report::reports_dir(app, &settings) {
+        Ok(dir) => dir,
+        Err(e) => {
+            error!("Bug report folder unavailable: {e:#}");
+            return Some(
+                Notice::new(NoticeCode::BugReportSaveFailed, NoticeSource::Dictation)
+                    .with_detail(format!("{e:#}")),
+            );
+        }
+    };
+    let transcript = transcript.to_string();
+    let saved = tauri::async_runtime::spawn_blocking(move || {
+        bug_report::save(&dir, &report, &transcript, &environment)
+    })
+    .await;
+    match saved {
+        Ok(Ok(path)) => {
+            info!("Bug report saved to {}", path.display());
+            (!structured).then(|| {
+                Notice::new(NoticeCode::BugReportNotStructured, NoticeSource::Dictation)
+                    .with_detail(path.display().to_string())
+            })
+        }
+        Ok(Err(e)) => {
+            error!("Failed to save bug report: {e:#}");
+            Some(
+                Notice::new(NoticeCode::BugReportSaveFailed, NoticeSource::Dictation)
+                    .with_detail(format!("{e:#}")),
+            )
+        }
+        Err(e) => {
+            error!("Bug report save task failed: {e}");
+            Some(
+                Notice::new(NoticeCode::BugReportSaveFailed, NoticeSource::Dictation)
+                    .with_detail(e.to_string()),
+            )
+        }
+    }
+}
+
 pub(crate) struct ProcessedTranscription {
     pub final_text: String,
     pub post_processed_text: Option<String>,
@@ -737,6 +794,7 @@ impl ShortcutAction for TranscribeAction {
 
         let binding_id = binding_id.to_string(); // Clone binding_id for the async task
         let post_process = self.post_process;
+        let bug_report = self.bug_report;
         let cancel_generation = rm.cancel_generation();
 
         tauri::async_runtime::spawn(async move {
@@ -831,7 +889,7 @@ impl ShortcutAction for TranscribeAction {
                                 utils::redact_text(&transcription)
                             );
 
-                            if post_process {
+                            if post_process || bug_report {
                                 if use_streaming_overlay {
                                     tm.emit_stream_working(StreamWorkKind::Polishing);
                                 } else {
@@ -869,6 +927,42 @@ impl ShortcutAction for TranscribeAction {
                                 ) {
                                     error!("Failed to save history entry: {}", err);
                                 }
+                            }
+
+                            if bug_report {
+                                // Saved, not pasted: neither the paste hook nor
+                                // the paste thread applies.
+                                let transcript = processed.final_text;
+                                if is_blank_transcription(&transcript) {
+                                    finish_without_text(&ah, input_silent, sample_count, stop_time);
+                                    return;
+                                }
+                                let Some(notice) = complete_unless_cancelled(
+                                    save_bug_report(&ah, &transcript),
+                                    || rm.was_cancelled_since(cancel_generation),
+                                )
+                                .await
+                                else {
+                                    debug!("Transcription operation cancelled during bug report");
+                                    utils::hide_recording_overlay(&ah);
+                                    set_tray_state(&ah, TrayIconState::Idle);
+                                    return;
+                                };
+                                match notice {
+                                    Some(notice) => notices::raise(&ah, notice),
+                                    None => {
+                                        notices::clear(&ah, NoticeSource::Dictation);
+                                        utils::hide_recording_overlay(&ah);
+                                    }
+                                }
+                                set_tray_state(&ah, TrayIconState::Idle);
+                                emit_transcription_complete(
+                                    &ah,
+                                    TranscriptionOutcome::Typed,
+                                    sample_count,
+                                    stop_time,
+                                );
+                                return;
                             }
 
                             // The user's hook only changes what gets pasted;
@@ -1093,11 +1187,22 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
         "transcribe".to_string(),
         Arc::new(TranscribeAction {
             post_process: false,
+            bug_report: false,
         }) as Arc<dyn ShortcutAction>,
     );
     map.insert(
         "transcribe_with_post_process".to_string(),
-        Arc::new(TranscribeAction { post_process: true }) as Arc<dyn ShortcutAction>,
+        Arc::new(TranscribeAction {
+            post_process: true,
+            bug_report: false,
+        }) as Arc<dyn ShortcutAction>,
+    );
+    map.insert(
+        "bug_report".to_string(),
+        Arc::new(TranscribeAction {
+            post_process: false,
+            bug_report: true,
+        }) as Arc<dyn ShortcutAction>,
     );
     map.insert(
         "cancel".to_string(),

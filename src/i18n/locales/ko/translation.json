@@ -348,6 +348,10 @@
           "transcribe_with_post_process": {
             "name": "후처리 단축키",
             "description": "선택 사항: 항상 AI 후처리를 적용하는 전용 단축키입니다."
+          },
+          "bug_report": {
+            "name": "Bug Report Shortcut",
+            "description": "The keyboard shortcut to dictate a bug report and save it as a Markdown file."
           }
         },
         "errors": {
@@ -898,6 +902,16 @@
           "details": "Handy는 빠르고 로컬 음성-텍스트 처리를 위해 ggml를 사용합니다. Georgi Gerganov와 기여자들의 놀라운 작업에 감사드립니다."
         }
       }
+    },
+    "bugReport": {
+      "title": "Bug Reports",
+      "folder": {
+        "title": "Bug Report Folder",
+        "description": "Where dictated bug reports are saved as Markdown files.",
+        "default": "Documents/Handy Bug Reports",
+        "choose": "Choose...",
+        "reset": "Reset"
+      }
     }
   },
   "footer": {
@@ -957,7 +971,11 @@
     "filePostProcessFailedTitle": "후처리 없이 받아씀",
     "filePostProcessFailed": "후처리가 완료되지 않아 받아쓰기 결과를 그대로 저장했습니다.",
     "fileTranscriptionFailedTitle": "파일 음성 인식 실패",
-    "transcriptionFailedTitle": "음성 인식 실패"
+    "transcriptionFailedTitle": "음성 인식 실패",
+    "bugReportSaveFailedTitle": "Bug Report Not Saved",
+    "bugReportSaveFailed": "Handy couldn't write the bug report file. Check the bug report folder in Settings > General.",
+    "bugReportNotStructuredTitle": "Bug Report Saved As Dictated",
+    "bugReportNotStructured": "Handy couldn't structure the report with AI, so it saved your words as dictated. Set up Post-Processing to get titles and steps."
   },
   "notices": {
     "errorOne": "오류 {{n}}개",

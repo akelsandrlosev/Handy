@@ -348,6 +348,10 @@
           "transcribe_with_post_process": {
             "name": "後処理のショートカット",
             "description": "文字起こしに常に AI 後処理を適用するキーボードショートカット。 (任意)"
+          },
+          "bug_report": {
+            "name": "Bug Report Shortcut",
+            "description": "The keyboard shortcut to dictate a bug report and save it as a Markdown file."
           }
         },
         "errors": {
@@ -898,6 +902,16 @@
           "details": "Handy のローカルの音声からテキストへの文字起こしは transcribe.cpp と ggml を基盤としています。Georgi Gerganov 氏と貢献者の皆様の素晴らしい仕事に感謝します。"
         }
       }
+    },
+    "bugReport": {
+      "title": "Bug Reports",
+      "folder": {
+        "title": "Bug Report Folder",
+        "description": "Where dictated bug reports are saved as Markdown files.",
+        "default": "Documents/Handy Bug Reports",
+        "choose": "Choose...",
+        "reset": "Reset"
+      }
     }
   },
   "footer": {
@@ -957,7 +971,11 @@
     "filePostProcessFailedTitle": "後処理なしで文字起こししました",
     "filePostProcessFailed": "後処理が完了しなかったため、文字起こしをそのまま保存しました。",
     "fileTranscriptionFailedTitle": "ファイルの文字起こしに失敗しました",
-    "transcriptionFailedTitle": "文字起こしに失敗しました"
+    "transcriptionFailedTitle": "文字起こしに失敗しました",
+    "bugReportSaveFailedTitle": "Bug Report Not Saved",
+    "bugReportSaveFailed": "Handy couldn't write the bug report file. Check the bug report folder in Settings > General.",
+    "bugReportNotStructuredTitle": "Bug Report Saved As Dictated",
+    "bugReportNotStructured": "Handy couldn't structure the report with AI, so it saved your words as dictated. Set up Post-Processing to get titles and steps."
   },
   "notices": {
     "errorOne": "エラー {{n}} 件",

@@ -348,6 +348,10 @@
           "transcribe_with_post_process": {
             "name": "Pintasan Pascaproses",
             "description": "Opsional: pintasan khusus yang selalu menerapkan pascaproses AI pada transkripsi Anda."
+          },
+          "bug_report": {
+            "name": "Bug Report Shortcut",
+            "description": "The keyboard shortcut to dictate a bug report and save it as a Markdown file."
           }
         },
         "errors": {
@@ -898,6 +902,16 @@
           "details": "Fitur ucapan-ke-teks lokal Handy dibangun menggunakan transcribe.cpp dan ggml. Terima kasih kepada Georgi Gerganov dan para kontributor atas karya luar biasa mereka."
         }
       }
+    },
+    "bugReport": {
+      "title": "Bug Reports",
+      "folder": {
+        "title": "Bug Report Folder",
+        "description": "Where dictated bug reports are saved as Markdown files.",
+        "default": "Documents/Handy Bug Reports",
+        "choose": "Choose...",
+        "reset": "Reset"
+      }
     }
   },
   "footer": {
@@ -957,7 +971,11 @@
     "filePostProcessFailedTitle": "Ditranskripsi Tanpa Pascaproses",
     "filePostProcessFailed": "Pascaproses tidak selesai, jadi transkrip disimpan apa adanya.",
     "fileTranscriptionFailedTitle": "Transkripsi File Gagal",
-    "transcriptionFailedTitle": "Transkripsi Gagal"
+    "transcriptionFailedTitle": "Transkripsi Gagal",
+    "bugReportSaveFailedTitle": "Bug Report Not Saved",
+    "bugReportSaveFailed": "Handy couldn't write the bug report file. Check the bug report folder in Settings > General.",
+    "bugReportNotStructuredTitle": "Bug Report Saved As Dictated",
+    "bugReportNotStructured": "Handy couldn't structure the report with AI, so it saved your words as dictated. Set up Post-Processing to get titles and steps."
   },
   "notices": {
     "errorOne": "{{n}} kesalahan",

@@ -4,6 +4,7 @@ mod apple_intelligence;
 mod audio_feedback;
 pub mod audio_toolkit;
 mod autostart;
+mod bug_report;
 mod catalog;
 mod chinese_script;
 pub mod cli;
@@ -715,6 +716,7 @@ pub fn run(cli_args: CliArgs) {
             shortcut::get_available_typing_tools,
             shortcut::change_typing_tool_setting,
             shortcut::change_external_script_path_setting,
+            shortcut::change_bug_report_dir_setting,
             shortcut::change_clipboard_handling_setting,
             shortcut::change_auto_submit_setting,
             shortcut::change_auto_submit_key_setting,

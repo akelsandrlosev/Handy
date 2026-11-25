@@ -348,6 +348,10 @@
           "transcribe_with_post_process": {
             "name": "पोस्ट-प्रोसेसिंग हॉटकी",
             "description": "वैकल्पिक: एक अलग हॉटकी जो आपके ट्रांसक्रिप्शन पर हमेशा AI पोस्ट-प्रोसेसिंग लागू करती है."
+          },
+          "bug_report": {
+            "name": "Bug Report Shortcut",
+            "description": "The keyboard shortcut to dictate a bug report and save it as a Markdown file."
           }
         },
         "errors": {
@@ -898,6 +902,16 @@
           "details": "Handy का लोकल स्पीच-टू-टेक्स्ट transcribe.cpp और ggml पर आधारित है. Georgi Gerganov और योगदान देने वालों के शानदार काम के लिए धन्यवाद."
         }
       }
+    },
+    "bugReport": {
+      "title": "Bug Reports",
+      "folder": {
+        "title": "Bug Report Folder",
+        "description": "Where dictated bug reports are saved as Markdown files.",
+        "default": "Documents/Handy Bug Reports",
+        "choose": "Choose...",
+        "reset": "Reset"
+      }
     }
   },
   "footer": {
@@ -957,7 +971,11 @@
     "filePostProcessFailedTitle": "पोस्ट प्रोसेस के बिना ट्रांसक्राइब किया गया",
     "filePostProcessFailed": "पोस्ट प्रोसेस पूरा नहीं हुआ, इसलिए ट्रांसक्रिप्ट जैसा था वैसा ही सहेजा गया।",
     "fileTranscriptionFailedTitle": "फ़ाइल का ट्रांसक्रिप्शन नहीं हो सका",
-    "transcriptionFailedTitle": "ट्रांसक्रिप्शन नहीं हो सका"
+    "transcriptionFailedTitle": "ट्रांसक्रिप्शन नहीं हो सका",
+    "bugReportSaveFailedTitle": "Bug Report Not Saved",
+    "bugReportSaveFailed": "Handy couldn't write the bug report file. Check the bug report folder in Settings > General.",
+    "bugReportNotStructuredTitle": "Bug Report Saved As Dictated",
+    "bugReportNotStructured": "Handy couldn't structure the report with AI, so it saved your words as dictated. Set up Post-Processing to get titles and steps."
   },
   "notices": {
     "errorOne": "{{n}} त्रुटि",

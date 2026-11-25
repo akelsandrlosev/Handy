@@ -348,6 +348,10 @@
           "transcribe_with_post_process": {
             "name": "後處理快捷鍵",
             "description": "可選：專用快捷鍵，使用時一律對轉錄結果套用 AI 後處理"
+          },
+          "bug_report": {
+            "name": "Bug Report Shortcut",
+            "description": "The keyboard shortcut to dictate a bug report and save it as a Markdown file."
           }
         },
         "errors": {
@@ -898,6 +902,16 @@
           "details": "Handy 使用 ggml 進行快速的本機語音轉文字處理。感謝 Georgi Gerganov 和貢獻者們的傑出工作"
         }
       }
+    },
+    "bugReport": {
+      "title": "Bug Reports",
+      "folder": {
+        "title": "Bug Report Folder",
+        "description": "Where dictated bug reports are saved as Markdown files.",
+        "default": "Documents/Handy Bug Reports",
+        "choose": "Choose...",
+        "reset": "Reset"
+      }
     }
   },
   "footer": {
@@ -957,7 +971,11 @@
     "filePostProcessFailedTitle": "已轉錄，未經後處理",
     "filePostProcessFailed": "後處理未完成，因此按原樣儲存轉錄內容。",
     "fileTranscriptionFailedTitle": "檔案轉錄失敗",
-    "transcriptionFailedTitle": "轉錄失敗"
+    "transcriptionFailedTitle": "轉錄失敗",
+    "bugReportSaveFailedTitle": "Bug Report Not Saved",
+    "bugReportSaveFailed": "Handy couldn't write the bug report file. Check the bug report folder in Settings > General.",
+    "bugReportNotStructuredTitle": "Bug Report Saved As Dictated",
+    "bugReportNotStructured": "Handy couldn't structure the report with AI, so it saved your words as dictated. Set up Post-Processing to get titles and steps."
   },
   "notices": {
     "errorOne": "{{n}} 個錯誤",

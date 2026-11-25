@@ -143,11 +143,21 @@ fn clean(text: &str) -> String {
         .to_string()
 }
 
+/// Uppercases the first letter, leaving the rest as spoken.
+fn capitalize(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => String::new(),
+    }
+}
+
 /// Splits spoken steps at sentence ends and commas, since steps are usually
 /// dictated as a comma-separated list; bare numbers ("1.") are dropped.
 fn split_steps(text: &str) -> Vec<String> {
     text.split(['.', '!', '?', ';', ',', '\n', '。'])
         .map(clean)
+        .map(|s| capitalize(&s))
         .filter(|s| !s.is_empty() && !s.chars().all(|c| c.is_ascii_digit()))
         .collect()
 }
@@ -246,8 +256,8 @@ mod tests {
             report.steps,
             vec![
                 "Открыть папку приложения",
-                "найти Exe файл",
-                "кликнуть по нему два раза"
+                "Найти Exe файл",
+                "Кликнуть по нему два раза"
             ]
         );
         assert_eq!(report.actual, "приложения выдает ошибку при запуске");
@@ -277,7 +287,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(report.title, "Приложение падает при сохранении");
-        assert_eq!(report.steps, vec!["Открыть файл", "нажать Сохранить"]);
+        assert_eq!(report.steps, vec!["Открыть файл", "Нажать Сохранить"]);
         assert_eq!(report.expected, "файла сохраняется");
         assert_eq!(report.actual, "приложения закрывается");
     }
@@ -293,7 +303,7 @@ mod tests {
         let md = crate::bug_report::render_markdown(&report, transcript, created, "Handy (test)");
         println!("{md}");
         assert!(md.starts_with("# Приложение падает при сохранении\n"));
-        assert!(md.contains("## Steps to reproduce\n\n1. Открыть файл\n2. нажать Сохранить\n"));
+        assert!(md.contains("## Steps to reproduce\n\n1. Открыть файл\n2. Нажать Сохранить\n"));
         assert!(md.contains("## Expected behavior\n\nфайла сохраняется\n"));
         assert!(md.contains("## Actual behavior\n\nприложения закрывается\n"));
         assert!(!md.contains("## Notes"));
